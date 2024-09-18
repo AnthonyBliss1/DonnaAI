@@ -35,8 +35,9 @@ response.mp3
 response.wav
 user_input.wav
 
-# Test files
+# Other Files
 test_calendar.py
+latest_call_id.txt
 
 # Credentials
 *.key

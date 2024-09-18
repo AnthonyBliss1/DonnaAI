@@ -18,6 +18,7 @@ import requests
 from collections import deque
 from dateutil import parser
 import pytz
+import urllib.request
 
 # Set API keys
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -26,7 +27,6 @@ BLAND_AI_API_KEY = os.getenv('BLAND_AI_API_KEY')
 client = OpenAI()
 
 user_name = "Anthony Bliss"
-user_email = "anthony.bliss@gmail.com"
 
 # Wake word configuration
 WAKE_WORD = 'hey donna'
@@ -340,6 +340,14 @@ def get_assistant_functions():
                 "required": ["phone_number", "party_size", "preferred_time", "preferred_date", "restaurant_name"],
             },
         },
+        {
+            "name": "play_latest_call_recording",
+            "description": "Play the recording of the most recent restaurant reservation call",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
     ]
 
 def make_restaurant_reservation(phone_number, party_size, preferred_time, preferred_date, restaurant_name):
@@ -368,9 +376,17 @@ def make_restaurant_reservation(phone_number, party_size, preferred_time, prefer
         print(f"Response content: {response.text}")
         
         if response.status_code == 200:
-            time.sleep(60)
             response_data = response.json()
             call_id = response_data.get('call_id')
+            
+            # Save the call_id to a file with the current date
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            filename = f"latest_call_id.txt"
+            with open(filename, "w") as f:
+                f.write(call_id)
+            print(f"Saved call_id {call_id} to {filename}")
+            
+            time.sleep(60)
             
             # Analyze the call
             analyze_url = f"https://api.bland.ai/v1/calls/{call_id}/analyze"
@@ -512,7 +528,6 @@ def generate_response(user_text, visualizer=None):
                         start_time=event_datetime.isoformat(),
                         end_time=end_datetime.isoformat(),
                         description=event_description,
-                        attendees=[user_email]
                     )
                     
                     print(f"Calendar invite creation result: {calendar_result}")
@@ -533,6 +548,8 @@ def generate_response(user_text, visualizer=None):
                     response_text = f"I'm sorry, but there was an error while trying to make the reservation at {function_args['restaurant_name']}: {result['message']}. Would you like me to try again or assist you with something else?"
                 
                 return response_text
+            elif function_name == "play_latest_call_recording":
+                result = play_latest_call_recording()
             else:
                 result = {"status": "error", "message": f"Unknown function: {function_name}"}
         except Exception as e:
@@ -623,6 +640,53 @@ def text_to_speech(text, visualizer=None):
 def check_event_created(event_title):
     events = get_upcoming_events()
     return any(event['title'] == event_title for event in events)
+
+def play_latest_call_recording():
+    try:
+        # Get the most recent call_id
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        filename = f"latest_call_id.txt"
+        
+        if not os.path.exists(filename):
+            return {"status": "error", "message": "No recent call found for today"}
+        
+        with open(filename, "r") as f:
+            call_id = f.read().strip()
+        
+        # Request the call recording
+        url = f"https://api.bland.ai/v1/calls/{call_id}/recording"
+        headers = {
+            "Authorization": os.getenv('BLAND_AI_API_KEY')
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data["status"] == "success":
+                mp3_url = data["url"]
+                
+                # Download the MP3 file
+                mp3_filename = f"call_recording_{call_id}.mp3"
+                urllib.request.urlretrieve(mp3_url, mp3_filename)
+                
+                # Play the MP3 file
+                playsound(mp3_filename)
+                
+                # Clean up the downloaded file
+                os.remove(mp3_filename)
+                
+                return {"status": "success", "message": "Call recording played successfully"}
+            else:
+                return {"status": "error", "message": "Failed to get recording URL"}
+        else:
+            return {"status": "error", "message": f"Failed to retrieve recording: {response.text}"}
+    
+    except Exception as e:
+        print(f"Error in play_latest_call_recording: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": f"Failed to play recording: {str(e)}"}
 
 def run_assistant(assistant_signals):
     global conversation_history
