@@ -327,13 +327,13 @@ def get_assistant_functions():
         },
         {
             "name": "make_restaurant_reservation",
-            "description": "Make a restaurant reservation using bland.ai",
+            "description": "Make a restaurant reservation using bland.ai. Requires a valid phone number for the restaurant.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "phone_number": {"type": "string"},
+                    "phone_number": {"type": "string", "description": "The phone number of the restaurant. This is required."},
                     "party_size": {"type": "integer"},
-                    "preferred_time": {"type": "string", "format": "time"},
+                    "preferred_time": {"type": "string", "description": "The preferred time in 12-hour format (e.g., '7:30 PM')"},
                     "preferred_date": {"type": "string", "format": "date"},
                     "restaurant_name": {"type": "string"},
                 },
@@ -351,6 +351,19 @@ def get_assistant_functions():
     ]
 
 def make_restaurant_reservation(phone_number, party_size, preferred_time, preferred_date, restaurant_name):
+    if not phone_number:
+        return {"status": "error", "message": "A valid phone number for the restaurant is required to make a reservation."}
+    
+    # Convert time to 12-hour format if it's in 24-hour format
+    try:
+        time_obj = datetime.strptime(preferred_time, "%I:%M %p")
+    except ValueError:
+        try:
+            time_obj = datetime.strptime(preferred_time, "%H:%M")
+            preferred_time = time_obj.strftime("%I:%M %p").lstrip("0").lower()
+        except ValueError:
+            return {"status": "error", "message": "Invalid time format. Please use '7:30 PM' or '19:30'."}
+    
     url = "https://us.api.bland.ai/v1/calls"
     
     headers = {
@@ -464,7 +477,7 @@ def generate_response(user_text, visualizer=None):
 
     # Prepare the messages for the API call
     messages = [
-        {"role": "system", "content": "You are Donna, a smart, witty, and helpful secretary with access to the user's calendar and the ability to make phone calls on behalf of the user. Use the provided functions when necessary to interact with the calendar or make phone calls. When making restaurant reservations, always ask for and confirm all necessary details before proceeding. DO NOT CREATED NUMBERED LISTS IN YOUR RESPONSES."},
+        {"role": "system", "content": "You are Donna, a smart, witty, and helpful secretary with access to the user's calendar and the ability to make phone calls on behalf of the user. Use the provided functions when necessary to interact with the calendar or make phone calls. When making restaurant reservations, always ask for and confirm all necessary details before proceeding, especially the restaurant's phone number which is required for the reservation. Ensure that times are provided in 12-hour format (e.g., '7:30 PM'). DO NOT CREATE NUMBERED LISTS IN YOUR RESPONSES."},
     ]
     messages.extend(list(conversation_history))
 
@@ -491,9 +504,8 @@ def generate_response(user_text, visualizer=None):
             elif function_name == "get_upcoming_events":
                 result = get_upcoming_events()
             elif function_name == "make_restaurant_reservation":
-                if 'restaurant_name' not in function_args:
-                    return "I'm sorry, I need to know the name of the restaurant. Can you please provide the restaurant name?"
-                
+                if 'phone_number' not in function_args or not function_args['phone_number']:
+                    return "I'm sorry, but I need the restaurant's phone number to make a reservation. Can you please provide the phone number?"
                 result = make_restaurant_reservation(**function_args)
                 print(f"Reservation result: {result}")
                 
