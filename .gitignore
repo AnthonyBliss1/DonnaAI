@@ -1,0 +1,45 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+*.env
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Project specific
+*.wav
+*.mp3
+response.mp3
+response.wav
+user_input.wav
+
+# Test files
+test_calendar.py
+
+# Credentials
+*.key
+*.pem
+credentials.json
+token.json
